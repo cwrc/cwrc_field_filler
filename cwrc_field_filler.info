@@ -1,0 +1,6 @@
+name = CWRC Field Filler
+description = Provides autocomplete callbacks and ajax functionality to fill fields.
+core = 7.x
+
+dependencies[] = xml_forms
+dependencies[] = islandora_solr

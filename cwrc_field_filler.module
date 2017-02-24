@@ -1,0 +1,128 @@
+<?php
+
+/**
+ * @file
+ * CWRC Field Filler module.
+ * @codingStandardsIgnoreFile
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function cwrc_field_filler_menu() {
+  $items = array();
+  $items['cwrc/entities/autocomplete/%'] = array(
+    'title' => 'Form Callbacks',
+    'page callback' => 'cwrc_entities_autocomplete',
+    'page arguments' => array(3),
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('search islandora solr'),
+  );
+  return $items;
+}
+
+/**
+ * Returns array of items to autocomplete forms.
+ *
+ * This is a copy of the islandora entities callbacks function, modified to fill
+ * fields with the URI AND the title so that we can use ajax to split these up.
+ *
+ * @param string $type
+ *   Selects either Scholar or Department.
+ */
+function cwrc_entities_autocomplete($type) {
+
+  $mappings = array(
+    'mods_title' => array(
+      'cmodel' => 'cwrc:citationCModel',
+      'title' => 'cwrc_entity_title_uniformTitle_et',
+    ),
+    'mods_author' => array(
+      'cmodel' => 'cwrc:person-entityCModel',
+      'title' => 'cwrc_entity_person_preferredForm_et',
+    ),
+    'mods_corporate_author' => array(
+      'cmodel' => 'cwrc:organization-entityCModel',
+      'title' => 'cwrc_entity_org_preferredForm_et',
+    ),
+    'mods_place_of_publication' => array(
+      'cmodel' => 'cwrc:place-entityCModel',
+      'title' => 'cwrc_entity_place_preferredForm_et',
+    ),
+    'mods_publisher' => array(
+      'cmodel' => 'cwrc:organization-entityCModel',
+      'title' => 'cwrc_entity_org_preferredForm_et',
+    ),
+  );
+  $qualifier = $mappings[$type]['title'] . ':*';
+  $path = request_path();
+  if ($path) {
+    $path_array = explode('/', $path);
+    $stub = end($path_array);
+    $qualifier = $mappings[$type]['title'] . ':' . $stub . '*';
+  }
+  $params = array(
+    'fl' => array($mappings[$type]['title'], 'PID'),
+  );
+  $query = "$qualifier AND " . 'RELS_EXT_hasModel_uri_mt:"' . $mappings[$type]['cmodel'] . '"';
+  $url = parse_url(variable_get('islandora_solr_url', 'localhost:8080/solr'));
+  $solr = new Apache_Solr_Service($url['host'], $url['port'], $url['path'] . '/');
+  $solr->setCreateDocuments(FALSE);
+  try {
+    $results = $solr->search($query, 0, 1000, $params);
+    $json = json_decode($results->getRawResponse(), TRUE);
+  }
+  catch (Exception $e) {
+    watchdog_exception('Islandora Entities', $e, 'Got an exception while searching entities for callback.', array(), WATCHDOG_ERROR);
+  }
+  $list = array();
+  foreach ($json['response']['docs'] as $choice) {
+    if (isset($choice[$mappings[$type]['title']])) {
+      $title = $choice[$mappings[$type]['title']][0];
+      $key = '(http://commons.cwrc.ca/' . $choice['PID'] . ') ' . $title;
+      $list[$key] = $title;
+    }
+  }
+
+  drupal_json_output($list);
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function cwrc_field_filler_form_alter(&$form, &$form_state, $form_id) {
+  switch ($form_id) {
+    case 'xml_form_builder_ingest_form':
+    case 'islandora_ingest_form':
+    case 'xml_form_builder_preview':
+      // Search the form tree for our autocomplete path and use our settings.
+      _cwrc_field_filler_search_tree($form);
+      break;
+  }
+}
+
+/**
+ * Recursive tree search function to attach js settings for our autocomplete.
+ */
+function _cwrc_field_filler_search_tree(&$tree, $depth = 0, $max_depth = 20) {
+  $depth++;
+  if ($depth > $max_depth || !is_array($tree)) {
+    return;
+  }
+
+  // Check for our autocomplete path.
+  if (isset($tree['#autocomplete_path'])
+    && preg_match('/^cwrc\/entities\/autocomplete\/.+$/', $tree['#autocomplete_path'])) {
+
+    // Add js settings for this autocomplete element.
+    $tree['#attributes']['class'][] = 'cwrc-field-filler-autocomplete';
+    $tree['#attached']['js'][] = drupal_get_path('module', 'cwrc_field_filler') . '/js/cwrc_field_filler.js';
+  }
+
+  // Recursively check children.
+  foreach ($tree as $key => &$leaf) {
+    if (is_string($key) && substr($key, 0, 1) != '#') {
+      _cwrc_field_filler_search_tree($leaf, $depth, $max_depth);
+    }
+  }
+}
