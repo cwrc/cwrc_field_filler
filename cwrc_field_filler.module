@@ -121,7 +121,7 @@ function _cwrc_field_filler_search_tree(&$tree, $depth = 0, $max_depth = 20) {
 
   // Recursively check children.
   foreach ($tree as $key => &$leaf) {
-    if (is_string($key) && substr($key, 0, 1) != '#') {
+    if ((is_string($key) && substr($key, 0, 1) != '#') || is_int($key)) {
       _cwrc_field_filler_search_tree($leaf, $depth, $max_depth);
     }
   }
