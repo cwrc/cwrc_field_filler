@@ -13,7 +13,7 @@
         autocomplete_value = match[2];
 
         // Attempt to fill the closest valueURI as well.
-        $(this.input).parents('fieldset').find('input[name$="valueURI]"]').val(match[1]);
+        $(this.input).closest('fieldset, .ui-tabs-panel').find('input[name$="valueURI]"]').val(match[1]);
 
       // Default autocomplete behaviour will do here.
       } else {
