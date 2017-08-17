@@ -95,6 +95,7 @@ function cwrc_field_filler_form_alter(&$form, &$form_state, $form_id) {
     case 'xml_form_builder_ingest_form':
     case 'islandora_ingest_form':
     case 'xml_form_builder_preview':
+    case 'xml_form_builder_datastream_form':
       // Search the form tree for our autocomplete path and use our settings.
       _cwrc_field_filler_search_tree($form);
       break;
